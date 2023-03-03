@@ -19,7 +19,12 @@ class GenericRepository:
         self.primary_keys = [primary_key.name for primary_key in Model.__table__.primary_key.columns.values()]
 
         # Get model's not nullable columns name
-        self.not_nullable_columns = [x.name for x in Model.__table__.columns if x.name not in self.primary_keys]
+        self.not_nullable_columns = [x.name for x in Model.__table__.columns if not x.nullable and x.name not in self.primary_keys]
+        # self.not_nullable_columns = list(set(self.not_nullable_columns) - set(self.primary_keys))
+
+        # # check if a column is nullable
+        # print(User.__table__.c.name.nullable)  # False
+        # print(User.__table__.c.age.nullable)  # True
 
     def verify_columns(self, **kwargs):
         # Check if all kwargs key exist in model columns
@@ -38,10 +43,6 @@ class GenericRepository:
 
     def verify_not_nullable_columns(self, **kwargs):
         # Verify if all not nullable columns are present in kwargs
-
-        print(self.not_nullable_columns)
-        print(kwargs)
-
         fields_missing = list(set(self.not_nullable_columns) - set(kwargs.keys()))
         if len(fields_missing) > 0:
             raise Exception(f'Not null field missing {fields_missing}')
@@ -78,14 +79,38 @@ class GenericRepository:
 
         with Session() as session:
             try:
-                servico = self.model(**kwargs)
-                session.add(servico)
+                my_model = self.model(**kwargs)
+                session.add(my_model)
                 session.commit()
             except Exception as e:
                 session.rollback()
                 raise e
 
-            return servico
+            return my_model
+
+    def create_all(self, list_items):
+        if not isinstance(list_items, list):
+            raise TypeError(f'{list_items} must be a list.')
+
+        for item in list_items:
+            if not isinstance(item, dict):
+                raise TypeError(f'{item} must be a dictionary')
+
+            # Check columns informed in kwargs
+            if self.verify_columns(**item):
+                # Check if not nullable columns are present and are not empty
+                self.verify_not_nullable_columns(**item)
+
+        with Session() as session:
+            try:
+                # insert the rows
+                session.bulk_insert_mappings(self.model, list_items)
+                session.commit()
+                return True
+            except Exception as e:
+                session.rollback()
+                raise e
+
 
     # Function that read ONE item in the database based on its PKs
     # kwargs are model PK key,values pairs
@@ -108,20 +133,46 @@ class GenericRepository:
             return result
 
     def update(self, **kwargs):
-        # Check if keys in **kwargs are Model valid columns
-        self.verify_columns(**kwargs)
+        # Check columns informed in kwargs
+        if self.verify_columns(**kwargs):
+            # Check if not nullable columns are present and are not empty
+            self.verify_not_nullable_columns(**kwargs)
+
+        my_model = self.read(**kwargs)
+        if my_model:
+            for key in kwargs:
+                if key:
+                    setattr(my_model, key, kwargs[key])
 
         with Session() as session:
             try:
-                model = self.read(**kwargs)
-                if model:
-                    for key in kwargs:
-                        if key:
-                            setattr(model, key, kwargs[key])
+                session.add(my_model)
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                raise e
 
-                    session.add(model)
-                    session.commit()
+            return my_model
 
+    def update_all(self, list_items):
+        if not isinstance(list_items, list):
+            raise TypeError(f'{list_items} must be a list.')
+
+        for item in list_items:
+            if not isinstance(item, dict):
+                raise TypeError(f'{item} must be a dictionary')
+
+            # Check columns informed in kwargs
+            if self.verify_columns(**item):
+                # Check if not nullable columns are present and are not empty
+                self.verify_not_nullable_columns(**item)
+
+        with Session() as session:
+            try:
+                # update the rows
+                session.bulk_update_mappings(self.model, list_items)
+                session.commit()
+                return True
             except Exception as e:
                 session.rollback()
                 raise e
@@ -133,9 +184,9 @@ class GenericRepository:
         deleted = None
         with Session() as session:
             try:
-                model = self.read(**kwargs)
-                if model:
-                    session.delete(model)
+                my_model = self.read(**kwargs)
+                if my_model:
+                    session.delete(my_model)
                     session.commit()
                     deleted = True
             except Exception as e:
@@ -143,6 +194,32 @@ class GenericRepository:
                 raise e
 
         return deleted
+
+    def delete_many(self, search_params):
+
+        # Create OR and AND filters from search parameters
+        or_filters, and_filters = self._create_filter_expression(search_params)
+        # If any (OR_FILTERS or AND_FILTERS) are True, return True
+        filter_expression = any([or_filters, and_filters])
+
+        if not filter_expression:
+            raise Exception('No filter expression informed.')
+        else:
+            with Session() as session:
+                query = session.query(self.model)
+                # Add filters to query
+                if and_filters:
+                    query = query.filter(and_(*and_filters))
+                if or_filters:
+                    query = query.filter(or_(*or_filters))
+
+                try:
+                    query.filter(filter_expression).delete()
+                    session.commit()
+                    return True
+                except Exception as e:
+                    session.rollback()
+                    raise Exception(e)
 
     def search(self, offset=0, limit=10, sort=None, search_params=None):
         # search_params is a list of dictionary with field, operator, value and conjuction
@@ -156,55 +233,6 @@ class GenericRepository:
         if limit > self.config["SEARCH_MAX_LIMIT"]:
             limit = self.config["SEARCH_MAX_LIMIT"]
 
-        # Define a dictionary that maps operator symbols to SQLAlchemy operators
-        operators = {
-            "==": lambda x, y: x == y,
-            "!=": lambda x, y: x != y,
-            ">": lambda x, y: x > y,
-            "<": lambda x, y: x < y,
-            ">=": lambda x, y: x >= y,
-            "<=": lambda x, y: x <= y,
-            "like": lambda x, y: x.like(y),
-            "ilike": lambda x, y: x.ilike(y),
-            "in": lambda x, y: x.in_(y),
-            "not in": lambda x, y: x.notin_(y),
-        }
-
-        conjunctions = ['and', 'or']
-
-        filter_expression = None
-        and_filters = []
-        or_filters = []
-        # Validate search parameters
-        # Check if search_params is a list
-        if search_params is not None:
-            if not isinstance(search_params, list):
-                raise Exception(f'"search_params" is not a list.')
-
-            for param in search_params:
-                if not isinstance(param, dict):
-                    raise Exception(f'Param "{param}" is not a dict.')
-
-                # Check if all params informed have a correspondent model column
-                if param["field"] not in self.columns:
-                    raise Exception(f'Field "{param["field"]}" does not exist in model.')
-
-                # Check if the operator is valid
-                if param["operator"] not in operators:
-                    raise Exception(f'Operator "{param["operator"]}" invalid')
-
-                if param["conjunction"] not in conjunctions:
-                    raise Exception(f'Conjuction "{param["conjunction"]}" invalid.')
-
-                # Dynamically construct the filter expression using the search parameters
-                for param in search_params:
-                    operator_func = operators.get(param["operator"])
-                    if operator_func:
-                        filter_expression = operator_func(getattr(self.model, param["field"]), param["value"])
-                        if param["conjunction"].lower() == 'or':
-                            or_filters.append(filter_expression)
-                        else:
-                            and_filters.append(filter_expression)
 
         # Get the sort columns and directions from 'sort' parameter
         sort_columns = []
@@ -238,6 +266,11 @@ class GenericRepository:
             elif sort == "desc":
                 order_by.append(column_obj.desc())
 
+        # Create OR and AND filters from search parameters
+        or_filters, and_filters = self._create_filter_expression(search_params)
+        # If any (OR_FILTERS or AND_FILTERS) are True, return True
+        filter_expression = any([or_filters, and_filters])
+
         with Session() as session:
             query = session.query(self.model)
             # Add filters to query
@@ -246,10 +279,65 @@ class GenericRepository:
             if or_filters:
                 query = query.filter(or_(*or_filters))
 
-            if filter_expression is not None:
+            if filter_expression:
                 results = query.filter(filter_expression).order_by(*order_by).offset(offset).limit(limit).all()
             else:
                 # If no filter were informed, search all items
                 results = query.order_by(*order_by).offset(offset).limit(limit).all()
 
             return results
+
+    # Construct the filter from search_params and returns '_or' and '_and' objects
+    def _create_filter_expression(self, search_params=None):
+
+        # Define a dictionary that maps operator symbols to SQLAlchemy operators
+        operators = {
+            "==": lambda x, y: x == y,
+            "!=": lambda x, y: x != y,
+            ">": lambda x, y: x > y,
+            "<": lambda x, y: x < y,
+            ">=": lambda x, y: x >= y,
+            "<=": lambda x, y: x <= y,
+            "like": lambda x, y: x.like(y),
+            "ilike": lambda x, y: x.ilike(y),
+            "in": lambda x, y: x.in_(y),
+            "not in": lambda x, y: x.notin_(y),
+        }
+
+        conjunctions = ['and', 'or']
+
+        filter_expression = None
+        and_filters = []
+        or_filters = []
+        # Validate search parameters
+        # Check if search_params is a list
+        if search_params is not None:
+            if not isinstance(search_params, list):
+                raise TypeError(f'"search_params" is not a list.')
+
+            for param in search_params:
+                if not isinstance(param, dict):
+                    raise TypeError(f'Param "{param}" is not a dict.')
+
+                # Check if all params informed have a correspondent model column
+                if param["field"] not in self.columns:
+                    raise Exception(f'Field "{param["field"]}" does not exist in model.')
+
+                # Check if the operator is valid
+                if param["operator"] not in operators:
+                    raise Exception(f'Operator "{param["operator"]}" invalid')
+
+                if param["conjunction"] not in conjunctions:
+                    raise Exception(f'Conjuction "{param["conjunction"]}" invalid.')
+
+                # Dynamically construct the filter expression using the search parameters
+                for param in search_params:
+                    operator_func = operators.get(param["operator"])
+                    if operator_func:
+                        filter_expression = operator_func(getattr(self.model, param["field"]), param["value"])
+                        if param["conjunction"].lower() == 'or':
+                            or_filters.append(filter_expression)
+                        else:
+                            and_filters.append(filter_expression)
+
+        return or_filters, and_filters
