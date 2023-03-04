@@ -19,30 +19,32 @@ if __name__ == '__main__':
     # department.create(name='SELOG')
 
     # UPDATE
-    # department.update(id=2, name='SRH/SR/PF/RR')
+    # department.update(id=6, department_id=1)
 
     # DELETE
     # department.delete(id=25)
 
     employee_list = [
-        # {"name": 'Leonardo Dias', "department_id": 1},
-        # {"name": "Andre Ramos", "department_id": 1},
-        # {"name": "Ricardo Mendes", "department_id": 2},
-        # {"name": "Andre Ross", "department_id": 2},
-        {"name": "Luiz", "department_id": 1},
-        {"name": "Rubinaldo", "department_id": 2}
+        {"name": 'Nilvania', "department_id": 2},
+        {"name": "Livia", "department_id": 2},
+        {"name": "Liz", "department_id": 2},
+        {"name": "Lucas", "department_id": 2},
+        {"name": "Olaf", "department_id": 2},
+        {"name": "Chanel", "department_id": 2}
     ]
 
-    employee.create_all(employee_list)
+
+    # EMPLOYEES
+
+    # employee.create_all(employee_list)
 
     update_employee_list = [
-        {"id": 1, "name": 'Leonardo Dias', "department_id": 1},
-        {"id": 2, "name": "Andre Ramos", "department_id": 1},
-        {"id": 3, "name": "Ricardo Mendes", "department_id": 2},
-        {"id": 4, "name": "Andre Ross", "department_id": 2}
+        {"id": 1, "department_id": 2},
+        {"id": 4, "department_id": 1}
     ]
 
-    # employee.update_all(employee_list)
+    # employee.update(id=6, department_id=1)
+    employee.update_all(update_employee_list)
 
     # employee.create(name='Leonardo', department_id=1)
     # employee.create(name='Ramos', department_id=1)
@@ -60,20 +62,32 @@ if __name__ == '__main__':
 
     # employee.delete_many(search_params)
 
-    # search_params = [
-    #     {"field": "name", "operator": "like", "value": "John", "conjunction": "and"},
-    #     {"field": "age", "operator": ">=", "value": 25, "conjunction": "or"},
-    #     {"field": "email", "operator": "ilike", "value": "%example.com", "conjunction": "and"},
-    # ]
+    employee_search_params = [
+        {"field": "department_id", "operator": "==", "value": "1", "conjunction": "and"}
+        # {"field": "age", "operator": ">=", "value": 25, "conjunction": "or"},
+        # {"field": "email", "operator": "ilike", "value": "%example.com", "conjunction": "and"},
+    ]
 
     # SEARCH Departments an it's Employees (no filter)
-    print('\nDepartments with employees:')
-    for dept in department.search():
-        print(dept)
-        if dept.employees:
-            for emp in dept.employees:
-                print('\t', emp)
+    # print('\nDepartments with employees:')
+    # for dept in department.search():
+    #     print(dept)
+    #     if dept.employees:
+    #         for emp in dept.employees:
+    #             print('\t', emp)
+
+    pagination = employee.search(page=3, page_size=4)
 
     print('\nEmployees:')
-    for emp in employee.search():
-        print(emp)
+    for idx, emp in enumerate(pagination.items, start=1):
+        print(idx, emp)
+
+    print('\nPagination:')
+    print('Total items:', pagination.total)
+    print('Page size:', pagination.page_size)
+    print('Total pages:', pagination.pages)
+    print('Current page:', pagination.page)
+    print('Page number list:', pagination.page_numbers())
+
+
+

@@ -1,5 +1,75 @@
 from connection import Session
 from sqlalchemy import and_, or_
+from sqlalchemy.orm import Query
+
+
+class GenericPagination:
+
+    # A Pagination object represents a single page of query results.
+
+    def __init__(self, query, page, page_size):
+
+        if not isinstance(query, Query):
+            raise TypeError(f'"query" is not an instance of sqlalchemy.orm.Query.')
+
+        if not isinstance(page, int):
+            raise TypeError(f'"page" must be integer.')
+
+        if page < 1:
+            raise Exception(f'"page" must be greater then or equal 1')
+
+        if not isinstance(page, int):
+            raise TypeError(f'"page_size" must be integer.')
+
+        if page_size < 1:
+            raise Exception(f'"page_size" must be greater then or equal 1')
+
+        # the SQLAlchemy Query object being paginated (sqlalchemy.orm.query.Query):.
+        self.query = query
+
+        # the current page number (int).
+        self.page = page
+
+        # the number of results per page (int).
+        self.page_size = page_size
+
+        # the total number of results in the query (int).
+        self.total = self.query.count()
+
+        # the total number of pages (int)
+        if self.total % self.page_size == 0:
+            self.pages = int(self.total / self.page_size)
+        else:
+            self.pages = int(self.total / self.page_size) + 1
+
+        # the page number of the previous page, or None if this is the first page.
+        if self.page - 1 > 0:
+            self.prev_num = self.page - 1
+        else:
+            self.prev_num = None
+
+        # the page number of the next page, or None if this is the last page.
+        if self.page + 1 > self.pages:
+            self.next_num = self.page + 1
+        else:
+            self.next_num = None
+
+        offset = (self.page - 1) * self.page_size
+        limit = self.page_size
+
+        self.items = query.offset(offset).limit(limit).all()
+
+    # return a Pagination object for the previous page, or None if this is the first page.
+    # def prev(self):
+    #     pass
+
+    # return a Pagination object for the next page, or None if this is the last page.
+    # def next(self):
+    #     pass
+
+    # generate a sequence of page numbers to display in a pagination widget.
+    def page_numbers(self):
+        return list(range(1, self.pages+1))
 
 
 class GenericRepository:
@@ -8,7 +78,7 @@ class GenericRepository:
         self.model = Model
 
         self.config = {
-            'SEARCH_MAX_LIMIT': 100,
+            'MAX_PAGE_SIZE': 1000,
             'AUTO_COMMIT': True
         }
 
@@ -19,7 +89,8 @@ class GenericRepository:
         self.primary_keys = [primary_key.name for primary_key in Model.__table__.primary_key.columns.values()]
 
         # Get model's not nullable columns name
-        self.not_nullable_columns = [x.name for x in Model.__table__.columns if not x.nullable and x.name not in self.primary_keys]
+        self.not_nullable_columns = [x.name for x in Model.__table__.columns if not x.nullable and x.name not in
+                                     self.primary_keys]
         # self.not_nullable_columns = list(set(self.not_nullable_columns) - set(self.primary_keys))
 
         # # check if a column is nullable
@@ -30,7 +101,7 @@ class GenericRepository:
         # Check if all kwargs key exist in model columns
         for key in kwargs.keys():
             if key not in self.columns:
-                raise Exception(f'Field "{key}" does not exist in model.')
+                raise Exception(f'Field "{key}" does not exist in model "{self.model.__table__}".')
 
         return True
 
@@ -111,7 +182,6 @@ class GenericRepository:
                 session.rollback()
                 raise e
 
-
     # Function that read ONE item in the database based on its PKs
     # kwargs are model PK key,values pairs
     # keys must be a valid Model PKs columns
@@ -134,9 +204,10 @@ class GenericRepository:
 
     def update(self, **kwargs):
         # Check columns informed in kwargs
-        if self.verify_columns(**kwargs):
-            # Check if not nullable columns are present and are not empty
-            self.verify_not_nullable_columns(**kwargs)
+        self.verify_columns(**kwargs)
+
+        # Check if primary keys were informed
+        self.verify_primary_keys(**kwargs)
 
         my_model = self.read(**kwargs)
         if my_model:
@@ -163,9 +234,10 @@ class GenericRepository:
                 raise TypeError(f'{item} must be a dictionary')
 
             # Check columns informed in kwargs
-            if self.verify_columns(**item):
-                # Check if not nullable columns are present and are not empty
-                self.verify_not_nullable_columns(**item)
+            self.verify_columns(**item)
+
+            # Verify if primary keys were informed
+            self.verify_primary_keys(**item)
 
         with Session() as session:
             try:
@@ -221,7 +293,7 @@ class GenericRepository:
                     session.rollback()
                     raise Exception(e)
 
-    def search(self, offset=0, limit=10, sort=None, search_params=None):
+    def search(self, page=1, page_size=10, sort=None, search_params=None):
         # search_params is a list of dictionary with field, operator, value and conjuction
         # See the follow example
         # search_params = [
@@ -230,9 +302,8 @@ class GenericRepository:
         #     {"field": "email", "operator": "ilike", "value": "%example.com", "conjunction": "and"},
         # ]
 
-        if limit > self.config["SEARCH_MAX_LIMIT"]:
-            limit = self.config["SEARCH_MAX_LIMIT"]
-
+        if page_size > self.config["MAX_PAGE_SIZE"]:
+            page_size = self.config["MAX_PAGE_SIZE"]
 
         # Get the sort columns and directions from 'sort' parameter
         sort_columns = []
@@ -273,6 +344,8 @@ class GenericRepository:
 
         with Session() as session:
             query = session.query(self.model)
+            # query = session.query(self.model).join(self.model.related_objects)
+
             # Add filters to query
             if and_filters:
                 query = query.filter(and_(*and_filters))
@@ -280,12 +353,20 @@ class GenericRepository:
                 query = query.filter(or_(*or_filters))
 
             if filter_expression:
-                results = query.filter(filter_expression).order_by(*order_by).offset(offset).limit(limit).all()
+                # Search for filter expression created
+                query.filter(filter_expression).order_by(*order_by)
             else:
                 # If no filter were informed, search all items
-                results = query.order_by(*order_by).offset(offset).limit(limit).all()
+                query.order_by(*order_by)
 
-            return results
+            # Do Pagination
+            # Wrap the query with Query class to use paginate method (thanks chatGPT!)
+            # paginated_query = Query(query)
+            # paginated_results = paginated_query.paginate(page=page, per_page=page_size)
+
+            paginated_results = GenericPagination(query, page=page, page_size=page_size)
+
+            return paginated_results
 
     # Construct the filter from search_params and returns '_or' and '_and' objects
     def _create_filter_expression(self, search_params=None):
