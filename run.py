@@ -1,4 +1,4 @@
-from generic_repository import GenericRepository
+from generic_repository import GenericRepository, get_model_primary_keys_dict
 from my_model import Department, Employee
 from declarative_base import Base
 from connection import engine
@@ -26,10 +26,20 @@ if __name__ == '__main__':
     # department.create_all(departments_list)
 
     # UPDATE
-    # department.update(id=6, department_id=1)
+    # dep = department.update(id=2, name='Minha Casa')
+    # print(f'{dep} atualizado')
+    # for emp in dep.employees:
+    #     print(f'\t{emp}')
 
     # DELETE
     # department.delete(id=25)
+
+    # SEARCH DEPARTMENT
+    # dep = department.search()
+    # for d in dep.items:
+    #     print(d)
+    #     for emp in d.employees:
+    #         print(f'\t{emp}')
 
     # EMPLOYEES
     employee_list = [
@@ -62,10 +72,12 @@ if __name__ == '__main__':
     ]
 
     # UPDATE
-    # print(employee.update(id=6, name="Nilvania Ricardo de Maceod Dias", department_id=1))
+    # print(employee.update(id=16, name="Alice", department_id=1))
     # employee.update_all(update_employee_list)
 
-    # employee.create(name='Alice Maiara', department_id=1)
+    # emp = employee.create(name='Alice Maiara', department_id=1)
+    # print(f'Created: {emp}')
+
     # employee.create(name='Ramos', department_id=1)
     # employee.create(name='Ricardo', department_id=1)
     # employee.create(name='Ross', department_id=1)
@@ -79,18 +91,18 @@ if __name__ == '__main__':
         # {"field": "email", "operator": "ilike", "value": "%example.com", "conjunction": "and"},
     ]
 
-    updated = employee.update_many(search_params=employee_update_search_params, name="Alice Maiara")
-    print(f'{updated} Rows affected')
+    # updated = employee.update_many(search_params=employee_update_search_params, name="Alice Maiara")
+    # print(f'{updated} Rows affected')
 
     # DELETE ONE ROW
     # deleted = employee.delete(id=2)
     # print(f'{deleted} rows deleted.')
 
     # DELETE MANY ROWS
-    # delete_params = [
-    #     {"field": "name", "operator": "ilike", "value": "%alice%", "conjunction": "and"}
-    #     {"field": "id", "operator": "in", "value": [14, 15], "conjunction": "and"}
-    # ]
+    delete_params = [
+        {"field": "name", "operator": "==", "value": "Alice Maiara", "conjunction": "and"}
+        # {"field": "id", "operator": "in", "value": [14, 15], "conjunction": "and"}
+    ]
 
     # deleted = employee.delete_many(delete_params)
     # print(f'{deleted} rows deleted.')
@@ -109,7 +121,11 @@ if __name__ == '__main__':
     #         for emp in dept.employees:
     #             print('\t', emp)
 
-    pagination = employee.search(page=1, page_size=30)
+    # emp = employee.read(id=1)
+    # print(emp)
+    # print(emp.department.name)
+
+    pagination = employee.search(page=4, page_size=3)
 
     print('\nEmployees:')
     for idx, emp in enumerate(pagination.items, start=1):

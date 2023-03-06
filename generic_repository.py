@@ -80,6 +80,13 @@ def model_to_dict(model):
     return {c.name: getattr(model, c.name) for c in model.__table__.columns}
 
 
+def get_model_primary_keys_dict(MyModel):
+        # return {c.name: getattr(MyModel, c.name) for c in MyModel.__table__.columns if c.name in MyModel.primary_keys}
+        pks = [primary_key.name for primary_key in MyModel.__table__.primary_key.columns.values()]
+        print('model pks:')
+        return
+
+
 class GenericRepository:
 
     def __init__(self, Model):
@@ -161,7 +168,7 @@ class GenericRepository:
                 my_model = self.model(**kwargs)
                 session.add(my_model)
                 session.commit()
-                return model_to_dict(my_model)
+                return self.read(**model_to_dict(my_model))
             except Exception as e:
                 session.rollback()
                 raise e
@@ -226,7 +233,7 @@ class GenericRepository:
             try:
                 session.add(my_model)
                 session.commit()
-                return model_to_dict(my_model)
+                return self.read(**model_to_dict(my_model))
             except Exception as e:
                 session.rollback()
                 raise e
