@@ -30,14 +30,19 @@ Delete many items based on informed searh parameters
 ### search(self, page=1, page_size=10, sort=None, search_params=None)
 A flexible search function.
 You must inform page number and page size for the search. The page size can be at maximum of value configured in self.config["MAX_PAGE_SIZE"] attribute (default is 100).
+
 Sort order is optionsl. If not informed, it will sort the search for the model primary key(s) ascending. To determine sort order, pass the paramenter 'sort' with a string containing plus (ascending) or minus (descending) signal, joined with the name of the field you want to sort. Example, if you want to sort a search for name in ascending order, infor the parameter: sort="+name". To sort for multiple fields, just separete each one with a comma. Example: sort="+name,-email"
 
 The 'search_params' is a list of dictionaries containing the search criterias. Example:
+
+
 search_params = [
-     {"field": "name", "operator": "like", "value": "John", "conjunction": "and"},
-     {"field": "age", "operator": ">=", "value": 25, "conjunction": "or"},
+
+     {"field": "name", "operator": "like", "value": "John", "conjunction": "and"},     
+     {"field": "age", "operator": ">=", "value": 25, "conjunction": "or"},     
      {"field": "email", "operator": "ilike", "value": "%example.com", "conjunction": "and"}
- ]
+]
+
  The operators supported are: ["==", "!=", ">", "<", ">=", "<=", "like", "ilike", "in", "not in"]
  The conjunctions supported are: ["and", "or"]
 
