@@ -43,13 +43,13 @@ class GenericPagination:
             self.pages = int(self.total / self.page_size) + 1
 
         # the page number of the previous page, or None if this is the first page.
-        if self.page - 1 > 0:
+        if self.page - 1 >= 1:
             self.prev_num = self.page - 1
         else:
             self.prev_num = None
 
         # the page number of the next page, or None if this is the last page.
-        if self.page + 1 > self.pages:
+        if self.page + 1 <= self.pages:
             self.next_num = self.page + 1
         else:
             self.next_num = None
@@ -58,6 +58,10 @@ class GenericPagination:
         limit = self.page_size
 
         self.items = query.offset(offset).limit(limit).all()
+
+        if self.page > self.pages:
+            raise Exception(f'Page number "{self.page}" can not be greater then total of pages "{self.pages}". '
+                            f'Check the page size informed.')
 
     # return a Pagination object for the previous page, or None if this is the first page.
     # def prev(self):
@@ -72,13 +76,17 @@ class GenericPagination:
         return list(range(1, self.pages+1))
 
 
+def model_to_dict(model):
+    return {c.name: getattr(model, c.name) for c in model.__table__.columns}
+
+
 class GenericRepository:
 
     def __init__(self, Model):
         self.model = Model
 
         self.config = {
-            'MAX_PAGE_SIZE': 1000,
+            'MAX_PAGE_SIZE': 100,
             'AUTO_COMMIT': True
         }
 
@@ -153,11 +161,10 @@ class GenericRepository:
                 my_model = self.model(**kwargs)
                 session.add(my_model)
                 session.commit()
+                return model_to_dict(my_model)
             except Exception as e:
                 session.rollback()
                 raise e
-
-            return my_model
 
     def create_all(self, list_items):
         if not isinstance(list_items, list):
@@ -219,35 +226,39 @@ class GenericRepository:
             try:
                 session.add(my_model)
                 session.commit()
+                return model_to_dict(my_model)
             except Exception as e:
                 session.rollback()
                 raise e
 
-            return my_model
+    def update_many(self, search_params, **kwargs):
+        # Check if keys in **kwargs are Model valid columns
+        self.verify_columns(**kwargs)
 
-    def update_all(self, list_items):
-        if not isinstance(list_items, list):
-            raise TypeError(f'{list_items} must be a list.')
+        # Create OR and AND filters from search parameters
+        or_filters, and_filters = self._create_filter_expression(search_params)
+        # If any (OR_FILTERS or AND_FILTERS) are True, return True
+        filter_expression = any([or_filters, and_filters])
 
-        for item in list_items:
-            if not isinstance(item, dict):
-                raise TypeError(f'{item} must be a dictionary')
+        if not filter_expression:
+            raise Exception('No filter expression informed.')
+        else:
+            with Session() as session:
+                query = session.query(self.model)
+                # Add filters to query
+                if and_filters:
+                    query = query.filter(and_(*and_filters))
+                if or_filters:
+                    query = query.filter(or_(*or_filters))
 
-            # Check columns informed in kwargs
-            self.verify_columns(**item)
+                try:
+                    updated = query.filter(filter_expression).update(kwargs)
+                    session.commit()
+                    return updated
 
-            # Verify if primary keys were informed
-            self.verify_primary_keys(**item)
-
-        with Session() as session:
-            try:
-                # update the rows
-                session.bulk_update_mappings(self.model, list_items)
-                session.commit()
-                return True
-            except Exception as e:
-                session.rollback()
-                raise e
+                except Exception as e:
+                    session.rollback()
+                    raise Exception(e)
 
     def delete(self, **kwargs):
         # Check if keys in **kwargs are Model valid columns
@@ -258,9 +269,9 @@ class GenericRepository:
             try:
                 my_model = self.read(**kwargs)
                 if my_model:
-                    session.delete(my_model)
+                    deleted = session.delete(my_model)
                     session.commit()
-                    deleted = True
+
             except Exception as e:
                 session.rollback()
                 raise e
@@ -286,9 +297,9 @@ class GenericRepository:
                     query = query.filter(or_(*or_filters))
 
                 try:
-                    query.filter(filter_expression).delete()
+                    deleted = query.filter(filter_expression).delete()
                     session.commit()
-                    return True
+                    return deleted
                 except Exception as e:
                     session.rollback()
                     raise Exception(e)
@@ -402,7 +413,7 @@ class GenericRepository:
 
                 # Check if all params informed have a correspondent model column
                 if param["field"] not in self.columns:
-                    raise Exception(f'Field "{param["field"]}" does not exist in model.')
+                    raise Exception(f'Field "{param["field"]}" does not exist in model "{self.model.__table__}".')
 
                 # Check if the operator is valid
                 if param["operator"] not in operators:
