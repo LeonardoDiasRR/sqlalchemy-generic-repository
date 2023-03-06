@@ -18,8 +18,8 @@ Read one item based on it's primary key(s)
 ### update(self, **kwargs)
 Update one item in database based on it's primary key(s)
 
-### update_all(self, list_items: list)
-Update many items based on informed searh parameters 
+### update_many(self, search_params, **kwargs)
+Update many items based on informed searh parameters.  
 
 ### delete(self, **kwargs)
 Delete one item in database based on it's primary key(s)
