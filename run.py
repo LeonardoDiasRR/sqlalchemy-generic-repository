@@ -42,23 +42,23 @@ if __name__ == '__main__':
     #         print(f'\t{emp}')
 
     # EMPLOYEES
-    employee_list = [
-        {"name": "Andre Ramos", "department_id": 1},
-        {"name": "Andre Ross", "department_id": 1},
-        {"name": "Raí", "department_id": 1},
-        {"name": "Ricardo", "department_id": 1},
-        {"name": "Rubinaldo", "department_id": 1},
-        {"name": "Luiz Otávio", "department_id": 1},
-        {"name": "Leonardo", "department_id": 2},
-        {"name": "Nilvania", "department_id": 2},
-        {"name": "Livia", "department_id": 2},
-        {"name": "Liz", "department_id": 2},
-        {"name": "Lucas", "department_id": 2},
-        {"name": "Olaf", "department_id": 2},
-        {"name": "Chanel", "department_id": 2}
+    new_employees_list = [
+        # {"name": "Andre Ramos", "department_id": 1},
+        # {"name": "Andre Ross", "department_id": 1},
+        # {"name": "Raí", "department_id": 1},
+        # {"name": "Ricardo", "department_id": 1},
+        # {"name": "Rubinaldo", "department_id": 1},
+        # {"name": "Luiz Otávio", "department_id": 1},
+        # {"name": "Leonardo", "department_id": 2},
+        # {"name": "Nilvania", "department_id": 2},
+        # {"name": "Livia", "department_id": 2},
+        # {"name": "Liz", "department_id": 2},
+        # {"name": "Lucas", "department_id": 2},
+        {"name": "Olaf", "email": "olaf@emil.com", "department_id": 1},
+        {"name": "Chanel", "email": "chanel@email.com", "department_id": 1}
     ]
 
-    # employee.create_all(employee_list)
+    # print(employee.create_all(new_employees_list), 'Created')
 
     # CREATE SINGLE EMPLOYEE
     # print(employee.create(name="Ibrahim", department_id="1"))
@@ -108,8 +108,8 @@ if __name__ == '__main__':
     # print(f'{deleted} rows deleted.')
 
     employee_search_params = [
-        {"field": "department_id", "operator": "==", "value": "2", "conjunction": "and"}
-        # {"field": "age", "operator": ">=", "value": 25, "conjunction": "or"},
+        {"field": "name", "operator": "ilike", "value": "%olaf%", "conjunction": "and"},
+        {"field": "email", "operator": "is", "value": None, "conjunction": "and"}
         # {"field": "email", "operator": "ilike", "value": "%example.com", "conjunction": "and"},
     ]
 
@@ -125,7 +125,7 @@ if __name__ == '__main__':
     # print(emp)
     # print(emp.department.name)
 
-    pagination = employee.search(page=1, page_size=15, sort='+department_id,+name')
+    pagination = employee.search(page=1, page_size=50, search_params=employee_search_params)
 
     print('\nEmployees:')
     for idx, emp in enumerate(pagination.items, start=1):

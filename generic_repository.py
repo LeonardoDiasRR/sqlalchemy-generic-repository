@@ -406,6 +406,8 @@ class GenericRepository:
             "ilike": lambda x, y: x.ilike(y),
             "in": lambda x, y: x.in_(y),
             "not in": lambda x, y: x.notin_(y),
+            "is": lambda x, y: x.is_(y),
+            "is not": lambda x, y: x.isnot(y)
         }
 
         conjunctions = ['and', 'or']

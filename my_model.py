@@ -23,4 +23,4 @@ class Employee(Base):
     # department = relationship("Department", back_populates="employees")
 
     def __repr__(self):
-        return f'Employee(id={self.id}, name={self.name}, department_id={self.department_id})'
+        return f'Employee(id={self.id}, name={self.name}, email={self.email}, department_id={self.department_id})'
