@@ -50,7 +50,7 @@ search_params = [
      {"field": "email", "operator": "ilike", "value": "%example.com", "conjunction": "and"}
 ]
 
- The operators supported are: ["==", "!=", ">", "<", ">=", "<=", "like", "ilike", "in", "not in"]
+ The operators supported are: ["==", "!=", ">", "<", ">=", "<=", "like", "ilike", "in", "not in", "is", "is not"]
  The conjunctions supported are: ["and", "or"]
 
 # What the GenericRepository does not do (yet):
