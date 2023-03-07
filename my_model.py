@@ -8,7 +8,7 @@ class Department(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, index=True)
 
-    employees = relationship("Employee", backref="employees", lazy="subquery")
+    employees = relationship("Employee", back_populates='department', lazy="subquery")
 
     def __repr__(self):
         return f'Department(id={self.id}, name={self.name})'
@@ -20,7 +20,8 @@ class Employee(Base):
     name = Column(String, nullable=False, index=True)
     email = Column(String, index=True)
     department_id = Column(Integer, ForeignKey('departments.id'), nullable=False)
-    # department = relationship("Department", back_populates="employees")
+
+    department = relationship("Department", back_populates="employees", lazy="joined")
 
     def __repr__(self):
         return f'Employee(id={self.id}, name={self.name}, email={self.email}, department_id={self.department_id})'
