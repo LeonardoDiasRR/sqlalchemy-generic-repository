@@ -108,7 +108,7 @@ if __name__ == '__main__':
     # print(f'{deleted} rows deleted.')
 
     employee_search_params = [
-        {"field": "department_id", "operator": "==", "value": "1", "conjunction": "and"}
+        {"field": "department_id", "operator": "==", "value": "2", "conjunction": "and"}
         # {"field": "age", "operator": ">=", "value": 25, "conjunction": "or"},
         # {"field": "email", "operator": "ilike", "value": "%example.com", "conjunction": "and"},
     ]
@@ -125,7 +125,7 @@ if __name__ == '__main__':
     # print(emp)
     # print(emp.department.name)
 
-    pagination = employee.search(page=4, page_size=3)
+    pagination = employee.search(page=1, page_size=15, sort='+department_id,+name')
 
     print('\nEmployees:')
     for idx, emp in enumerate(pagination.items, start=1):

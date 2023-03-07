@@ -323,11 +323,45 @@ class GenericRepository:
         if page_size > self.config["MAX_PAGE_SIZE"]:
             page_size = self.config["MAX_PAGE_SIZE"]
 
+        # Create order by list from parameter sort
+        order_by = self._create_sort_order(sort)
+
+        # Create OR & AND filters from search parameters
+        or_filters, and_filters = self._create_filter_expression(search_params)
+        # If any (OR_FILTERS or AND_FILTERS) are present, a filter expression is present
+        filter_expression = any([or_filters, and_filters])
+
+        with Session() as session:
+            query = session.query(self.model)
+            # query = session.query(self.model).join(self.model.related_objects)
+
+            # If any filter are present
+            if any([or_filters, and_filters]):
+                # Add filters to query
+                if and_filters:
+                    query = query.filter(and_(*and_filters))
+                if or_filters:
+                    query = query.filter(or_(*or_filters))
+
+            # Add sort order to query
+            query = query.order_by(*order_by)
+
+            # Do Pagination
+            # Wrap the query with Query class to use paginate method (thanks chatGPT!)
+            # paginated_query = Query(query)
+            # paginated_results = paginated_query.paginate(page=page, per_page=page_size)
+
+            paginated_results = GenericPagination(query, page=page, page_size=page_size)
+
+            return paginated_results
+
+    def _create_sort_order(self, sort):
         # Get the sort columns and directions from 'sort' parameter
         sort_columns = []
         if sort:
             order_values = sort.split(',')
             for sort in order_values:
+                sort = sort.strip().lower()
                 if sort[0] in ['-', '+']:
                     if sort[0] == '-':
                         sort_direction = 'desc'
@@ -337,12 +371,12 @@ class GenericRepository:
                     if sort[1:] in self.columns:
                         sort_columns.append((sort[1:], sort_direction))
                     else:
-                        pass
-                        # Ignore if sort column is not in model columns
-
-        # If no sort columns were informed, use PKs ASC as sort columns and direction
-        # defaults values for sort column and direction
-        if len(sort_columns) <= 0:
+                        raise Exception(f'Invalid sort field "{sort[1:]}"')
+                else:
+                    raise Exception(f'Invalid sort signal "{sort[0]}"')
+        else:
+            # If no sort columns were informed, use PKs ASC as sort columns and direction
+            # defaults values for sort column and direction
             for pk in self.primary_keys:
                 sort_columns.append((pk, 'asc'))
 
@@ -355,36 +389,7 @@ class GenericRepository:
             elif sort == "desc":
                 order_by.append(column_obj.desc())
 
-        # Create OR and AND filters from search parameters
-        or_filters, and_filters = self._create_filter_expression(search_params)
-        # If any (OR_FILTERS or AND_FILTERS) are True, return True
-        filter_expression = any([or_filters, and_filters])
-
-        with Session() as session:
-            query = session.query(self.model)
-            # query = session.query(self.model).join(self.model.related_objects)
-
-            # Add filters to query
-            if and_filters:
-                query = query.filter(and_(*and_filters))
-            if or_filters:
-                query = query.filter(or_(*or_filters))
-
-            if filter_expression:
-                # Search for filter expression created
-                query.filter(filter_expression).order_by(*order_by)
-            else:
-                # If no filter were informed, search all items
-                query.order_by(*order_by)
-
-            # Do Pagination
-            # Wrap the query with Query class to use paginate method (thanks chatGPT!)
-            # paginated_query = Query(query)
-            # paginated_results = paginated_query.paginate(page=page, per_page=page_size)
-
-            paginated_results = GenericPagination(query, page=page, page_size=page_size)
-
-            return paginated_results
+        return order_by
 
     # Construct the filter from search_params and returns '_or' and '_and' objects
     def _create_filter_expression(self, search_params=None):
@@ -418,7 +423,18 @@ class GenericRepository:
                 if not isinstance(param, dict):
                     raise TypeError(f'Param "{param}" is not a dict.')
 
-                # Check if all params informed have a correspondent model column
+                # check if all params keys are present
+                mandatory_param_keys = ['field', 'operator', 'value', 'conjunction']
+                keys_missing = list(set(mandatory_param_keys) - set(param.keys()))
+                if len(keys_missing) > 0:
+                    raise TypeError(f'Key(s) {keys_missing} missing in search parameters {param}.')
+
+                # check invalid parameters keys were informed
+                worg_keys = list(set(param.keys()) - set(mandatory_param_keys))
+                if len(worg_keys) > 0:
+                    raise TypeError(f'Wrong parameter(s) keys {worg_keys} informed in search parameter {param}.')
+
+                # Check if field name informed in prameter have a correspondent model column
                 if param["field"] not in self.columns:
                     raise Exception(f'Field "{param["field"]}" does not exist in model "{self.model.__table__}".')
 
@@ -426,6 +442,7 @@ class GenericRepository:
                 if param["operator"] not in operators:
                     raise Exception(f'Operator "{param["operator"]}" invalid')
 
+                # Check if the conjunction is valid
                 if param["conjunction"] not in conjunctions:
                     raise Exception(f'Conjuction "{param["conjunction"]}" invalid.')
 
