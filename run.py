@@ -1,4 +1,4 @@
-from generic_repository import GenericRepository, get_model_primary_keys_dict
+from generic_repository import GenericRepository
 from my_model import Department, Employee
 from declarative_base import Base
 from connection import engine
