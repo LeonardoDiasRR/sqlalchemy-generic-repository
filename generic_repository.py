@@ -15,14 +15,14 @@ class GenericPagination:
         if not isinstance(page, int):
             raise TypeError(f'"page" must be integer.')
 
-        if page < 1:
-            raise Exception(f'"page" must be greater then or equal 1')
+        if page is None or page < 1:
+            raise Exception(f'Page number can not be None or less then 1')
 
         if not isinstance(page, int):
             raise TypeError(f'"page_size" must be integer.')
 
-        if page_size < 1:
-            raise Exception(f'"page_size" must be greater then or equal 1')
+        if page_size is None or page_size < 1:
+            raise Exception(f'Page size can not be None or less then 1')
 
         # the SQLAlchemy Query object being paginated (sqlalchemy.orm.query.Query):.
         self.query = query
@@ -41,6 +41,10 @@ class GenericPagination:
             self.pages = int(self.total / self.page_size)
         else:
             self.pages = int(self.total / self.page_size) + 1
+
+        # If page number informed is greater than page size, assume last page size
+        if self.page > self.page_size:
+            self.page = self.page_size
 
         # the page number of the previous page, or None if this is the first page.
         if self.page - 1 >= 1:
