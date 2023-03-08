@@ -1,10 +1,10 @@
 # sqlalchemy-generic-repository module
-It's a generic repository module to handle any sqlalchemy model, providing basic CRUD functions and a flexible search function.
-The module contains two main classes: GenericRepository and GenericPagination. GenericRepository provides the functions to handle the sqlalchemy model with CRUD methods and a flexible search method. GenericPagination class is used paginate the search. It is returned by GenericRepository.search() method.
+It's a generic repository module to handle any sqlalchemy model, providing basic CRUD methods and a flexible search method.
+The module contains two main classes: GenericRepository and GenericPagination. GenericRepository provides the methods to handle the sqlalchemy model with CRUD methods and a flexible search method. GenericPagination class is used paginate the search. It is returned by GenericRepository.search() method.
 
 ## GenericRepository methods:
 ### create(**kwargs)
-Create one item in corresponding table in database. You can pass key/values to function, where keys must correspond to model fields. The method returns an model instance of corresponding row inserted into database table. Not nullable fields defined in model are mandatory. **Do not pass primary keys fields to create() method, unless you are absolutly sure you what you are doing.**
+Create one item in corresponding table in database. You can pass key/values to method, where keys must correspond to model fields. The method returns a model instance of corresponding row inserted into database table. Not nullable fields defined in model are mandatory. **Do not pass primary keys fields to create() method, unless you are absolutly sure you what you are doing.**
 
 Example:
 ```
@@ -77,7 +77,7 @@ In the example above, all employees with name "John" in the name will be deleted
 In the example above, all employees with name "John" in the name will have email updated to "john.peter@email.com".
 
 ### search(page=1, page_size=10, sort=None, search_params=None)
-A flexible search function.
+A flexible search method.
 You must inform page number and page size for the search. The max page size can configured in config["MAX_PAGE_SIZE"] attribute of GenericRepository class (default is 100).
 
 Sort order is optionsl. If not informed, it will sort the search for the model primary key(s) ascending. To determine sort order, pass the paramenter 'sort=' with a string containing plus signal (ascending) or minus signal (descending), joined with the name of the field you want to sort. Example, if you want to sort a search for name in ascending order, inform the parameter: sort="+name". To sort for multiple fields, just separete each one with a comma. Example: sort="+name,-email"
