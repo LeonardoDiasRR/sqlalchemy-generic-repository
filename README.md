@@ -26,7 +26,7 @@ employee.create_all(employees_list)
 ```
 
 ### read(**kwargs)
-Read one item based on it's primary key(s). Return a instance of model retreived or None if no row where found.
+Read one item based on it's primary key(s). Return a instance of model retreived or None if no row where found in database.
 ```
 epmloyee = GenericRepository(EmployeeModel)
 employee.read(id=1)
@@ -34,7 +34,7 @@ employee.read(id=1)
 
 
 ### update(**kwargs)
-Update one item in database based on it's primary key(s). Return a model instance of updated item.
+Update one item in database based on it's primary key(s). Return a instance of model updated or None if the item was not found in dataabse.
 ```
 epmloyee = GenericRepository(EmployeeModel)
 employee.update(id=1, name="John Peter", email="jpeter@email.com")
@@ -51,11 +51,11 @@ epmloyee = GenericRepository(EmployeeModel)
 employee.update_many(search_params=employees_search_params, email="john.peter@email.com")
 ```
 
-In the example above, all employees with name "John" in the name will have email updated to "john.peter@email.com" in database.
+In the example above, all employees with "John" in the name will have email updated to "john.peter@email.com" in database.
 
 
 ### delete(**kwargs)
-Delete one item in database based on it's primary key(s). Return number of rows affeced.
+Delete one item in database based on it's primary key(s). Return number of rows affeced or None if no items were deleted.
 ```
 epmloyee = GenericRepository(EmployeeModel)
 employee.delete(id=1)
@@ -74,11 +74,9 @@ employee.delete_many(search_params=employees_search_params)
 ```
 In the example above, all employees with name "John" in the name will be deleted from database.
 
-In the example above, all employees with name "John" in the name will have email updated to "john.peter@email.com".
-
 ### search(page=1, page_size=10, sort=None, search_params=None)
 A flexible search method.
-You must inform page number and page size for the search. The max page size can configured in config["MAX_PAGE_SIZE"] attribute of GenericRepository class (default is 100).
+You must inform page number and page size for the search. The max page size can be configured in GenericRepository.config["MAX_PAGE_SIZE"] attribute of GenericRepository class (default is 100).
 
 Sort order is optionsl. If not informed, it will sort the search for the model primary key(s) ascending. To determine sort order, pass the paramenter 'sort=' with a string containing plus signal (ascending) or minus signal (descending), joined with the name of the field you want to sort. Example, if you want to sort a search for name in ascending order, inform the parameter: sort="+name". To sort for multiple fields, just separete each one with a comma. Example: sort="+name,-email"
 
