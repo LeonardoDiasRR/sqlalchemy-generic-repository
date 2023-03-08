@@ -9,6 +9,10 @@ class GenericPagination:
 
     def __init__(self, query, page, page_size):
 
+        self.config = {
+            "MAX_PAGE_SIZE": 100
+        }
+
         if not isinstance(query, Query):
             raise TypeError(f'"query" is not an instance of sqlalchemy.orm.Query.')
 
@@ -24,14 +28,17 @@ class GenericPagination:
         if page_size is None or page_size < 1:
             raise Exception(f'Page size can not be None or less then 1')
 
+        if page_size > self.config["MAX_PAGE_SIZE"]:
+            self.page_size = self.config["MAX_PAGE_SIZE"]
+        else:
+            # the number of results per page (int).
+            self.page_size = page_size
+
         # the SQLAlchemy Query object being paginated (sqlalchemy.orm.query.Query):.
         self.query = query
 
         # the current page number (int).
         self.page = page
-
-        # the number of results per page (int).
-        self.page_size = page_size
 
         # the total number of results in the query (int).
         self.total = self.query.count()
@@ -63,9 +70,9 @@ class GenericPagination:
 
         self.items = query.offset(offset).limit(limit).all()
 
+        # IF page_num > total of pages, assume the last one
         if self.page > self.pages:
-            raise Exception(f'Page number "{self.page}" can not be greater then total of pages "{self.pages}". '
-                            f'Check the page size informed.')
+            self.page = self.pages
 
     # return a Pagination object for the previous page, or None if this is the first page.
     # def prev(self):
@@ -324,36 +331,24 @@ class GenericRepository:
         #     {"field": "email", "operator": "ilike", "value": "%example.com", "conjunction": "and"},
         # ]
 
-        if page_size > self.config["MAX_PAGE_SIZE"]:
-            page_size = self.config["MAX_PAGE_SIZE"]
-
-        # Create order by list from parameter sort
+        # Create order_by list from parameter sort
         order_by = self._create_sort_order(sort)
 
         # Create OR & AND filters from search parameters
         or_filters, and_filters = self._create_filter_expression(search_params)
-        # If any (OR_FILTERS or AND_FILTERS) are present, a filter expression is present
-        filter_expression = any([or_filters, and_filters])
 
         with Session() as session:
+            # Instance Query object
             query = session.query(self.model)
-            # query = session.query(self.model).join(self.model.related_objects)
 
-            # If any filter are present
-            if any([or_filters, and_filters]):
-                # Add filters to query
-                if and_filters:
-                    query = query.filter(and_(*and_filters))
-                if or_filters:
-                    query = query.filter(or_(*or_filters))
+            # Add filters to query
+            if and_filters:
+                query = query.filter(and_(*and_filters))
+            if or_filters:
+                query = query.filter(or_(*or_filters))
 
             # Add sort order to query
             query = query.order_by(*order_by)
-
-            # Do Pagination
-            # Wrap the query with Query class to use paginate method (thanks chatGPT!)
-            # paginated_query = Query(query)
-            # paginated_results = paginated_query.paginate(page=page, per_page=page_size)
 
             paginated_results = GenericPagination(query, page=page, page_size=page_size)
 
