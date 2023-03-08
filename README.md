@@ -8,8 +8,8 @@ Create one item in corresponding table in database. You can pass key/values to m
 
 Example:
 ```
-repo_epmloyee = GenericRepository(EmployeeModel)
-repo_epmloyee.create(name="John", email="john@email.com")
+epmloyee = GenericRepository(EmployeeModel)
+epmloyee.create(name="John", email="john@email.com")
 ```
 
 ### create_all(list_items)
