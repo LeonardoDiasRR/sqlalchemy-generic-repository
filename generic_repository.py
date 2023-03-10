@@ -91,25 +91,24 @@ def model_to_dict(model):
     return {c.name: getattr(model, c.name) for c in model.__table__.columns}
 
 
-def get_model_primary_keys_dict(MyModel):
-        # return {c.name: getattr(MyModel, c.name) for c in MyModel.__table__.columns if c.name in MyModel.primary_keys}
-        pks = [primary_key.name for primary_key in MyModel.__table__.primary_key.columns.values()]
-        print('model pks:')
-        return
-
-
 class GenericRepository:
 
     def __init__(self, Model):
-        self.model = Model
 
         self.config = {
-            'MAX_PAGE_SIZE': 100,
             'AUTO_COMMIT': True
         }
 
+        # Set the model
+        self.model = Model
+
         # Get the model's columns name
         self.columns = [column.name for column in Model.__table__.columns]
+
+        # Get the model's relationship columns
+        self.relationship_fields = [prop.key for prop in Model.__mapper__.relationships]
+        if len(self.relationship_fields) > 0:
+            self.columns.extend(self.relationship_fields)
 
         # Get the model's primary keys names
         self.primary_keys = [primary_key.name for primary_key in Model.__table__.primary_key.columns.values()]
@@ -117,11 +116,6 @@ class GenericRepository:
         # Get model's not nullable columns name
         self.not_nullable_columns = [x.name for x in Model.__table__.columns if not x.nullable and x.name not in
                                      self.primary_keys]
-        # self.not_nullable_columns = list(set(self.not_nullable_columns) - set(self.primary_keys))
-
-        # # check if a column is nullable
-        # print(User.__table__.c.name.nullable)  # False
-        # print(User.__table__.c.age.nullable)  # True
 
     def verify_columns(self, **kwargs):
         # Check if all kwargs key exist in model columns
@@ -179,6 +173,7 @@ class GenericRepository:
                 my_model = self.model(**kwargs)
                 session.add(my_model)
                 session.commit()
+
                 return self.read(**model_to_dict(my_model))
             except Exception as e:
                 session.rollback()
