@@ -183,6 +183,7 @@ class GenericRepository:
         if not isinstance(list_items, list):
             raise TypeError(f'{list_items} must be a list.')
 
+        create_list = []
         for item in list_items:
             if not isinstance(item, dict):
                 raise TypeError(f'{item} must be a dictionary')
@@ -192,10 +193,12 @@ class GenericRepository:
                 # Check if not nullable columns are present and are not empty
                 self.verify_not_nullable_columns(**item)
 
+            create_list.append(self.model(**item))
+
         with Session() as session:
             try:
                 # insert the rows
-                session.bulk_insert_mappings(self.model, list_items)
+                session.add_all(create_list)
                 session.commit()
                 return True
             except Exception as e:
