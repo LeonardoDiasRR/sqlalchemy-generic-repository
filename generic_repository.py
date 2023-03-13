@@ -93,11 +93,10 @@ def model_to_dict(model):
 
 class GenericRepository:
 
-    def __init__(self, Model):
+    def __init__(self, Model, session, auto_commit=True):
 
-        self.config = {
-            'AUTO_COMMIT': True
-        }
+        self.session = session
+        self.auto_commit = auto_commit
 
         # Set the model
         self.model = Model
@@ -168,22 +167,22 @@ class GenericRepository:
             # Check if not nullable columns are present and are not empty
             self.verify_not_nullable_columns(**kwargs)
 
-        with Session() as session:
-            try:
-                my_model = self.model(**kwargs)
-                session.add(my_model)
-                session.commit()
+        try:
+            my_model = self.model(**kwargs)
+            self.session.add(my_model)
+            if self.auto_commit:
+                self.session.commit()
 
-                return self.read(**model_to_dict(my_model))
-            except Exception as e:
-                session.rollback()
-                raise e
+            return self.read(**model_to_dict(my_model))
+        except Exception as e:
+            self.session.rollback()
+            raise e
 
     def create_all(self, list_items):
         if not isinstance(list_items, list):
             raise TypeError(f'{list_items} must be a list.')
 
-        create_list = []
+        created_list = []
         for item in list_items:
             if not isinstance(item, dict):
                 raise TypeError(f'{item} must be a dictionary')
@@ -193,17 +192,17 @@ class GenericRepository:
                 # Check if not nullable columns are present and are not empty
                 self.verify_not_nullable_columns(**item)
 
-            create_list.append(self.model(**item))
+            created_list.append(self.model(**item))
 
-        with Session() as session:
-            try:
-                # insert the rows
-                session.add_all(create_list)
-                session.commit()
-                return True
-            except Exception as e:
-                session.rollback()
-                raise e
+        try:
+            # insert the rows
+            self.session.add_all(created_list)
+            if self.auto_commit:
+                self.session.commit()
+            return created_list
+        except Exception as e:
+            self.session.rollback()
+            raise e
 
     # Function that read ONE item in the database based on its PKs
     # kwargs are model PK key,values pairs
@@ -221,7 +220,7 @@ class GenericRepository:
 
         with Session() as session:
             # Execute the search and return the results
-            result = session.query(self.model).filter(filter_condition).first()
+            result = self.session.query(self.model).filter(filter_condition).first()
 
             return result
 
@@ -238,14 +237,14 @@ class GenericRepository:
                 if key:
                     setattr(my_model, key, kwargs[key])
 
-        with Session() as session:
-            try:
-                session.add(my_model)
-                session.commit()
-                return self.read(**model_to_dict(my_model))
-            except Exception as e:
-                session.rollback()
-                raise e
+        try:
+            self.session.add(my_model)
+            if self.auto_commit:
+                self.session.commit()
+            return self.read(**model_to_dict(my_model))
+        except Exception as e:
+            self.session.rollback()
+            raise e
 
     def update_many(self, search_params, **kwargs):
         # Check if keys in **kwargs are Model valid columns
@@ -259,38 +258,38 @@ class GenericRepository:
         if not filter_expression:
             raise Exception('No filter expression informed.')
         else:
-            with Session() as session:
-                query = session.query(self.model)
-                # Add filters to query
-                if and_filters:
-                    query = query.filter(and_(*and_filters))
-                if or_filters:
-                    query = query.filter(or_(*or_filters))
+            query = self.session.query(self.model)
+            # Add filters to query
+            if and_filters:
+                query = query.filter(and_(*and_filters))
+            if or_filters:
+                query = query.filter(or_(*or_filters))
+            try:
+                updated = query.filter(filter_expression).update(kwargs)
+                if self.auto_commit:
+                    self.session.commit()
+                return updated
 
-                try:
-                    updated = query.filter(filter_expression).update(kwargs)
-                    session.commit()
-                    return updated
-
-                except Exception as e:
-                    session.rollback()
-                    raise Exception(e)
+            except Exception as e:
+                self.session.rollback()
+                raise Exception(e)
 
     def delete(self, **kwargs):
         # Check if keys in **kwargs are Model valid columns
         self.verify_columns(**kwargs)
 
         deleted = None
-        with Session() as session:
-            try:
-                my_model = self.read(**kwargs)
-                if my_model:
-                    deleted = session.delete(my_model)
-                    session.commit()
 
-            except Exception as e:
-                session.rollback()
-                raise e
+        try:
+            my_model = self.read(**kwargs)
+            if my_model:
+                deleted = self.session.delete(my_model)
+                if self.auto_commit:
+                    self.session.commit()
+
+        except Exception as e:
+            self.session.rollback()
+            raise e
 
         return deleted
 
@@ -304,23 +303,23 @@ class GenericRepository:
         if not filter_expression:
             raise Exception('No filter expression informed.')
         else:
-            with Session() as session:
-                query = session.query(self.model)
-                # Add filters to query
-                if and_filters:
-                    query = query.filter(and_(*and_filters))
-                if or_filters:
-                    query = query.filter(or_(*or_filters))
+            query = self.session.query(self.model)
+            # Add filters to query
+            if and_filters:
+                query = query.filter(and_(*and_filters))
+            if or_filters:
+                query = query.filter(or_(*or_filters))
 
-                try:
-                    deleted = query.filter(filter_expression).delete()
-                    session.commit()
-                    return deleted
-                except Exception as e:
-                    session.rollback()
-                    raise Exception(e)
+            try:
+                deleted = query.filter(filter_expression).delete()
+                if self.auto_commit:
+                    self.session.commit()
+                return deleted
+            except Exception as e:
+                self.session.rollback()
+                raise Exception(e)
 
-    def search(self, page=1, page_size=10, sort=None, search_params=None):
+    def search(self, sort=None, search_params=None):
         # search_params is a list of dictionary with field, operator, value and conjuction
         # See the follow example
         # search_params = [
@@ -335,22 +334,52 @@ class GenericRepository:
         # Create OR & AND filters from search parameters
         or_filters, and_filters = self._create_filter_expression(search_params)
 
-        with Session() as session:
-            # Instance Query object
-            query = session.query(self.model)
+        # Instance Query object
+        query = self.session.query(self.model)
 
-            # Add filters to query
-            if and_filters:
-                query = query.filter(and_(*and_filters))
-            if or_filters:
-                query = query.filter(or_(*or_filters))
+        # Add filters to query
+        if and_filters:
+            query = query.filter(and_(*and_filters))
+        if or_filters:
+            query = query.filter(or_(*or_filters))
 
-            # Add sort order to query
-            query = query.order_by(*order_by)
+        # Add sort order to query
+        query = query.order_by(*order_by)
 
-            paginated_results = GenericPagination(query, page=page, page_size=page_size)
+        results = query.all()
 
-            return paginated_results
+        return results
+
+    def paginated_search(self, page=1, page_size=10, sort=None, search_params=None):
+        # search_params is a list of dictionary with field, operator, value and conjuction
+        # See the follow example
+        # search_params = [
+        #     {"field": "name", "operator": "like", "value": "John", "conjunction": "and"},
+        #     {"field": "age", "operator": ">=", "value": 25, "conjunction": "or"},
+        #     {"field": "email", "operator": "ilike", "value": "%example.com", "conjunction": "and"},
+        # ]
+
+        # Create order_by list from parameter sort
+        order_by = self._create_sort_order(sort)
+
+        # Create OR & AND filters from search parameters
+        or_filters, and_filters = self._create_filter_expression(search_params)
+
+        # Instance Query object
+        query = self.session.query(self.model)
+
+        # Add filters to query
+        if and_filters:
+            query = query.filter(and_(*and_filters))
+        if or_filters:
+            query = query.filter(or_(*or_filters))
+
+        # Add sort order to query
+        query = query.order_by(*order_by)
+
+        paginated_results = GenericPagination(query, page=page, page_size=page_size)
+
+        return paginated_results
 
     def _create_sort_order(self, sort):
         # Get the sort columns and directions from 'sort' parameter
