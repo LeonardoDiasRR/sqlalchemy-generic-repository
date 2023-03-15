@@ -95,8 +95,11 @@ class GenericRepository:
 
     def __init__(self, Model, session, auto_commit=True):
 
-        self.session = session
+        # Set autocommit
         self.auto_commit = auto_commit
+
+        # Set session
+        self.session = session
 
         # Set the model
         self.model = Model
@@ -283,9 +286,11 @@ class GenericRepository:
         try:
             my_model = self.read(**kwargs)
             if my_model:
-                deleted = self.session.delete(my_model)
+                self.session.delete(my_model)
                 if self.auto_commit:
                     self.session.commit()
+
+                deleted = 1
 
         except Exception as e:
             self.session.rollback()
